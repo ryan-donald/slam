@@ -16,7 +16,7 @@ class LoopClosureDetector:
         self.bow_min_score = bow_min_score
         self.spatial_radius = spatial_radius
         
-        self.bow_database = BoWDatabase(vocabulary_size=1000) if use_bow else None
+        self.bow_database = BoWDatabase(vocabulary_size=2000) if use_bow else None
         self.spatial_index = SpatialIndex() if use_spatial else None
     
     def train_bow_vocabulary(self, keyframes):
@@ -58,7 +58,7 @@ class LoopClosureDetector:
             if len(bow_results) == 0:
                 return None
             
-            bow_candidate_ids = {kf_id for kf_id, _ in bow_results[:20]}
+            bow_candidate_ids = {kf_id for kf_id, _ in bow_results[:40]}
             candidates = [kf for kf in candidates if kf.id in bow_candidate_ids]
         
         if self.use_spatial and len(candidates) > 0:

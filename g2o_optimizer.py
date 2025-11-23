@@ -12,8 +12,7 @@ class G2OPoseGraphOptimizer:
         self.optimizer.set_algorithm(solver)
     
     def optimize(self, keyframes, loop_edges, odometry_weight=100.0, loop_weight=50.0, 
-                 huber_delta=5.0, num_iterations=10, boost_established_loops=False, 
-                 use_uncertainty=True):
+                 huber_delta=5.0, num_iterations=10, boost_established_loops=False, adaptive_odometry=False):
         self.optimizer.clear()
         kf_id_to_idx = {kf.id: i for i, kf in enumerate(keyframes)}
         
@@ -21,16 +20,15 @@ class G2OPoseGraphOptimizer:
         # i was previously optimizing each loop closure, and the resulting trajectory was diverging from the ground-truth signifigantly
         original_poses = [kf.pose.copy() for kf in keyframes]
         
-        if use_uncertainty:
-            for kf in keyframes:
-                kf.update_uncertainty(len(keyframes))
         
         for i, kf in enumerate(keyframes):
             v = g2o.VertexSE3()
             v.set_id(i)
             v.set_estimate(self.matrix_to_se3(kf.pose))
+
+            # sets the first keyframe as fixed, to match the ground truth trajectory.
             if i == 0:
-                v.set_fixed(True)  # Anchor
+                v.set_fixed(True)
             self.optimizer.add_vertex(v)
         
         for i in range(len(keyframes) - 1):
@@ -44,14 +42,12 @@ class G2OPoseGraphOptimizer:
                 relative_pose = np.linalg.inv(keyframes[i].pose) @ keyframes[i+1].pose
             edge.set_measurement(self.matrix_to_se3(relative_pose))
             
-            if use_uncertainty:
-                kf_curr = keyframes[i]
-                avg_uncertainty = (kf_curr.uncertainty + kf_next.uncertainty) / 2.0
-                adjusted_weight = odometry_weight / (avg_uncertainty + 0.01)
-            else:
-                adjusted_weight = odometry_weight
+            if adaptive_odometry:
+                position_factor = 1.0 - (i / max(len(keyframes) - 1, 1))
+                weight_scale = 0.4 + 0.6 * (1.0 - position_factor)
+                odometry_weight *= weight_scale
             
-            edge.set_information(np.eye(6) * adjusted_weight)
+            edge.set_information(np.eye(6) * odometry_weight)
             self.optimizer.add_edge(edge)
 
         for kf1_id, kf2_id, relative_pose in loop_edges:
@@ -68,13 +64,7 @@ class G2OPoseGraphOptimizer:
             if boost_established_loops and kf1.num_loop_closures > 0 and kf2.num_loop_closures > 0:
                 loop_info *= 1.5
             
-            if use_uncertainty:
-                avg_uncertainty = (kf1.uncertainty + kf2.uncertainty) / 2.0
-                adjusted_loop_weight = loop_info / (avg_uncertainty + 0.01)
-            else:
-                adjusted_loop_weight = loop_info
-            
-            edge.set_information(np.eye(6) * adjusted_loop_weight)
+            edge.set_information(np.eye(6) * loop_info)
             
             kernel = g2o.RobustKernelHuber()
             kernel.set_delta(huber_delta)

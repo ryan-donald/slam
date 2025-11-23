@@ -23,17 +23,6 @@ class Keyframe:
         self.bow_vector = None
         self.position = pose_transform[:3, 3].copy()
     
-    def update_uncertainty(self, total_keyframes):
-        age_ratio = self.id / max(1, total_keyframes - 1)
-
-        age_factor = 0.1 + 0.9 * age_ratio
-        
-        loop_factor = 1.0 / (1.0 + 0.2 * self.num_loop_closures)
-        
-        self.uncertainty = age_factor * loop_factor
-        
-        self.uncertainty = max(0.05, min(1.0, self.uncertainty))
-    
     def add_map_point(self, keypoint_idx, map_point):
         self.map_points[keypoint_idx] = map_point
         map_point.add_observation(self.id, keypoint_idx)

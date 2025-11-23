@@ -97,12 +97,12 @@ class SLAM:
 
         self.loop_detector = LoopClosureDetector(
             self.feature_matcher,
-            min_matches=300,
+            min_matches=100,
             temporal_gap=50,
             use_bow=True,
             use_spatial=True,
-            bow_min_score=0.25,
-            spatial_radius=30.0
+            bow_min_score=0.2,
+            spatial_radius=75.0
         )
 
         self.loop_edges = []
